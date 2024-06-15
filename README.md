@@ -10,3 +10,24 @@
 - Delete individual tasks or clear all tasks at once.
 - Switch between different projects.
 - Export tasks to a CSV file for backup or sharing.
+
+## Usage
+
+1. Clone the repository to your local machine
+
+```sh
+    git clone https://github.com/mistervoga/taskline.git
+    cd taskline
+```
+
+2. Compile the code
+
+```sh
+    cargo build --release
+```
+
+3. Run the executable
+
+```sh
+    ./target/release/taskline
+```
