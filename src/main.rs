@@ -1,7 +1,7 @@
 mod db;
 mod tasks;
 
-use db::{init_db, set_project, get_current_project, list_projects};
+use db::{init_db, set_project,  list_projects};
 use tasks::{add_task, list_tasks, complete_task, delete_task, delete_all_tasks, export_project};
 use rusqlite::Connection;
 use std::env;
@@ -16,7 +16,7 @@ fn print_usage() {
     println!("  taskline delete <task_index>");
     println!("  taskline delete -a");
     println!("  taskline switch <project_name>");
-    println!("  taskline export <project_name>");
+    println!("  taskline export [project_name]");
     println!("  taskline projects");
 }
 
@@ -75,7 +75,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         "export" => {
             if args.len() < 3 {
-                println!("Error: Specify the project name for export.");
+                export_project(&conn, "Global").expect("Failed to export Global project.");
             } else {
                 export_project(&conn, &args[2]).expect("Failed to export project.");
             }

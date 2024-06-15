@@ -123,10 +123,14 @@ pub fn delete_all_tasks(conn: &Connection) -> Result<()> {
 }
 
 pub fn export_project(conn: &Connection, project_name: &str) -> Result<(), Box<dyn Error>> {
-    let query = format!(
-        "SELECT id, description, completed, date_added, date_completed FROM tasks WHERE project_id = (SELECT id FROM projects WHERE name = '{}')",
-        project_name
-    );
+    let query = if project_name.eq_ignore_ascii_case("global") {
+        "SELECT id, description, completed, date_added, date_completed FROM tasks WHERE project_id IS NULL".to_string()
+    } else {
+        format!(
+            "SELECT id, description, completed, date_added, date_completed FROM tasks WHERE project_id = (SELECT id FROM projects WHERE name = '{}')",
+            project_name
+        )
+    };
 
     let mut stmt = conn.prepare(&query)?;
     let task_iter = stmt.query_map([], |row| {
