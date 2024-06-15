@@ -4,15 +4,18 @@ use std::fs::File;
 use std::error::Error;
 use csv::Writer;
 
-pub fn add_task(conn: &Connection, task: &str, project: Option<&str>) -> Result<()> {
-    let project_name = project.unwrap_or("Global");
+pub fn add_task(conn: &Connection, task: &str) -> Result<()> {
+    let project_name = crate::db::get_current_project(conn)?.unwrap_or_else(|| "Global".to_string());
 
-    // Retrieve the project id
-    let project_id: Option<i32> = conn.query_row(
-        "SELECT id FROM projects WHERE name = ?1",
-        params![project_name],
-        |row| row.get(0)
-    ).optional()?; // Use optional() to return an Option<Result<i32>>
+    let project_id: Option<i32> = if project_name.eq_ignore_ascii_case("global") {
+        None
+    } else {
+        conn.query_row(
+            "SELECT id FROM projects WHERE name = ?1",
+            params![project_name],
+            |row| row.get(0)
+        ).optional()?
+    };
 
     let now: DateTime<Local> = Local::now();
     conn.execute(
@@ -23,38 +26,45 @@ pub fn add_task(conn: &Connection, task: &str, project: Option<&str>) -> Result<
     Ok(())
 }
 
-
 pub fn list_tasks(conn: &Connection) -> Result<()> {
     let current_project = crate::db::get_current_project(conn)?;
     let query = match &current_project {
-        Some(_) => "SELECT t.id, t.description, t.completed, t.date_added, t.date_completed, p.name FROM tasks t
-                    JOIN projects p ON t.project_id = p.id WHERE p.name = ?1",
-        None => "SELECT t.id, t.description, t.completed, t.date_added, t.date_completed, p.name FROM tasks t
-                 LEFT JOIN projects p ON t.project_id = p.id WHERE t.project_id IS NULL"
+        Some(proj) if !proj.eq_ignore_ascii_case("global") => {
+            "SELECT t.id, t.description, t.completed, t.date_added, t.date_completed, p.name FROM tasks t
+             JOIN projects p ON t.project_id = p.id WHERE p.name = ?1"
+        }
+        _ => {
+            "SELECT t.id, t.description, t.completed, t.date_added, t.date_completed, p.name FROM tasks t
+             LEFT JOIN projects p ON t.project_id = p.id WHERE t.project_id IS NULL"
+        }
     };
 
     let mut stmt = conn.prepare(query)?;
-    let task_iter: Box<dyn Iterator<Item = Result<_, rusqlite::Error>>> = match &current_project {
-        Some(proj) => Box::new(stmt.query_map(params![proj], |row| {
-            Ok((
-                row.get::<_, i32>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, bool>(2)?,
-                row.get::<_, String>(3)?,
-                row.get::<_, Option<String>>(4)?,
-                row.get::<_, Option<String>>(5)?,
-            ))
-        })?),
-        None => Box::new(stmt.query_map([], |row| {
-            Ok((
-                row.get::<_, i32>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, bool>(2)?,
-                row.get::<_, String>(3)?,
-                row.get::<_, Option<String>>(4)?,
-                row.get::<_, Option<String>>(5)?,
-            ))
-        })?),
+    let task_iter: Box<dyn Iterator<Item = Result<(_, _, _, _, _, _)>>> = match &current_project {
+        Some(proj) if !proj.eq_ignore_ascii_case("global") => {
+            Box::new(stmt.query_map(params![proj], |row| {
+                Ok((
+                    row.get::<_, i32>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, bool>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, Option<String>>(4)?,
+                    row.get::<_, Option<String>>(5)?,
+                ))
+            })?)
+        }
+        _ => {
+            Box::new(stmt.query_map([], |row| {
+                Ok((
+                    row.get::<_, i32>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, bool>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, Option<String>>(4)?,
+                    row.get::<_, Option<String>>(5)?,
+                ))
+            })?)
+        }
     };
 
     for task in task_iter {
@@ -72,9 +82,6 @@ pub fn list_tasks(conn: &Connection) -> Result<()> {
     }
     Ok(())
 }
-
-
-
 
 pub fn complete_task(conn: &Connection, id: i32) -> Result<()> {
     let now: DateTime<Local> = Local::now();
