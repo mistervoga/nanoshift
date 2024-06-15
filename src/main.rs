@@ -1,30 +1,35 @@
 mod db;
 mod tasks;
 
-use db::{init_db, set_project, list_projects};
-use tasks::{add_task, list_tasks, complete_task, delete_task, delete_all_tasks, export_project};
 use rusqlite::Connection;
 use std::env;
 use std::path::PathBuf;
 use std::result::Result;
 
-fn print_usage() {
-    println!("Usage:");
-    println!("  taskline init [project_name]");
-    println!("  taskline add <task>");
-    println!("  taskline list");
-    println!("  taskline complete <task_index>");
-    println!("  taskline delete <task_index>");
-    println!("  taskline delete -a");
-    println!("  taskline switch <project_name>");
-    println!("  taskline export [project_name]");
-    println!("  taskline projects");
-}
+use db::{init_db, set_project, list_projects};
+use tasks::{add_task, list_tasks, complete_task, delete_task, delete_all_tasks, export_project};
 
 fn get_db_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
     let exe_path = env::current_exe()?;
     let exe_dir = exe_path.parent().ok_or("Failed to get executable directory")?;
     Ok(exe_dir.join("tasks.db"))
+}
+
+fn print_usage() {
+    println!("taskline 0.1");
+    println!("taskline is a task management CLI tool to help you organize your projects and tasks efficiently.");
+    println!("Author: Nicolas von Garrel <mistervoga@gmail.com>");
+    println!();
+    println!("Usage:");
+    println!("  tl init [project_name]      Initializes a new project");
+    println!("  tl add <task>               Adds a new task to the current project");
+    println!("  tl list                     Lists all tasks in the current project");
+    println!("  tl complete <task_index>    Marks a task as completed");
+    println!("  tl delete <task_index>      Deletes a task");
+    println!("  tl delete -a                Deletes all tasks in the current project");
+    println!("  tl switch <project_name>    Switches to a different project");
+    println!("  tl export [project_name]    Exports tasks of the current or specified project to a CSV file");
+    println!("  tl projects                 Lists all projects");
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -46,16 +51,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 init_db(&conn, Some(&args[2]))?;
             }
         }
-        "switch" => {
-            if args.len() < 3 {
-                println!("Error: Specify the project name to switch to.");
-            } else {
-                set_project(&conn, &args[2])?;
-            }
-        }
         "add" => {
             if args.len() < 3 {
                 println!("Error: Specify a task to add.");
+                print_usage();
             } else {
                 add_task(&conn, &args[2])?;
             }
@@ -66,6 +65,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "complete" => {
             if args.len() < 3 {
                 println!("Error: Specify the ID of the task to complete.");
+                print_usage();
             } else {
                 let id = args[2].parse::<i32>().expect("Invalid ID");
                 complete_task(&conn, id)?;
@@ -74,11 +74,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "delete" => {
             if args.len() < 3 {
                 println!("Error: Specify the ID of the task to delete.");
+                print_usage();
             } else if args[2] == "-a" {
                 delete_all_tasks(&conn)?;
             } else {
                 let id = args[2].parse::<i32>().expect("Invalid ID");
                 delete_task(&conn, id)?;
+            }
+        }
+        "switch" => {
+            if args.len() < 3 {
+                println!("Error: Specify the project name to switch to.");
+                print_usage();
+            } else {
+                set_project(&conn, &args[2])?;
             }
         }
         "export" => {
