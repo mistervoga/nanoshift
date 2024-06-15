@@ -1,10 +1,11 @@
 mod db;
 mod tasks;
 
-use db::{init_db, set_project,  list_projects};
+use db::{init_db, set_project, list_projects};
 use tasks::{add_task, list_tasks, complete_task, delete_task, delete_all_tasks, export_project};
 use rusqlite::Connection;
 use std::env;
+use std::path::PathBuf;
 use std::result::Result;
 
 fn print_usage() {
@@ -20,6 +21,12 @@ fn print_usage() {
     println!("  taskline projects");
 }
 
+fn get_db_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let exe_path = env::current_exe()?;
+    let exe_dir = exe_path.parent().ok_or("Failed to get executable directory")?;
+    Ok(exe_dir.join("tasks.db"))
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
 
@@ -28,7 +35,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    let conn = Connection::open("tasks.db")?;
+    let db_path = get_db_path()?;
+    let conn = Connection::open(db_path)?;
 
     match args[1].as_str() {
         "init" => {
