@@ -7,12 +7,12 @@ pub fn list_projects(conn: &Connection) -> Result<()> {
     })?;
 
     println!("Projects:");
-    println!(" - Global");
     for project in project_iter {
         println!(" - {}", project?);
     }
     Ok(())
 }
+
 
 pub fn init_db(conn: &Connection, project: Option<&str>) -> Result<()> {
     conn.execute(
@@ -22,7 +22,7 @@ pub fn init_db(conn: &Connection, project: Option<&str>) -> Result<()> {
                   )",
         [],
     )?;
-
+    
     conn.execute(
         "CREATE TABLE IF NOT EXISTS tasks (
                   id INTEGER PRIMARY KEY,
@@ -35,7 +35,7 @@ pub fn init_db(conn: &Connection, project: Option<&str>) -> Result<()> {
                   )",
         [],
     )?;
-
+    
     conn.execute(
         "CREATE TABLE IF NOT EXISTS current_project (
                   id INTEGER PRIMARY KEY,
@@ -72,49 +72,39 @@ pub fn init_db(conn: &Connection, project: Option<&str>) -> Result<()> {
 }
 
 pub fn set_project(conn: &Connection, project: &str) -> Result<()> {
-    if project.eq_ignore_ascii_case("global") {
-        // Set the project to null in current_project to switch to global
-        conn.execute(
-            "INSERT INTO current_project (id, project_id) VALUES (1, NULL)
-             ON CONFLICT(id) DO UPDATE SET project_id=excluded.project_id",
-            [],
-        )?;
-        println!("Switched to Global project.");
-    } else {
-        conn.execute(
-            "INSERT INTO projects (name) VALUES (?1)
-             ON CONFLICT(name) DO NOTHING",
-            params![project],
-        )?;
+    conn.execute(
+        "INSERT INTO projects (name) VALUES (?1)
+         ON CONFLICT(name) DO NOTHING",
+        params![project],
+    )?;
 
-        let project_id: i32 = conn.query_row(
-            "SELECT id FROM projects WHERE name = ?1",
-            params![project],
-            |row| row.get(0),
-        )?;
+    let project_id: i32 = conn.query_row(
+        "SELECT id FROM projects WHERE name = ?1",
+        params![project],
+        |row| row.get(0),
+    )?;
 
-        conn.execute(
-            "INSERT INTO current_project (id, project_id) VALUES (1, ?1)
-             ON CONFLICT(id) DO UPDATE SET project_id=excluded.project_id",
-            params![project_id],
-        )?;
-        println!("Switched to project '{}'.", project);
-    }
+    conn.execute(
+        "INSERT INTO current_project (id, project_id) VALUES (1, ?1)
+         ON CONFLICT(id) DO UPDATE SET project_id=excluded.project_id",
+        params![project_id],
+    )?;
+    println!("Switched to project '{}'.", project);
     Ok(())
 }
 
 pub fn get_current_project(conn: &Connection) -> Result<Option<String>> {
     let mut stmt = conn.prepare(
         "SELECT p.name FROM current_project cp
-         LEFT JOIN projects p ON cp.project_id = p.id
+         JOIN projects p ON cp.project_id = p.id
          WHERE cp.id = 1"
     )?;
     let project_iter = stmt.query_map([], |row| {
-        row.get::<_, Option<String>>(0)
+        row.get::<_, String>(0)
     })?;
 
     for project in project_iter {
-        return Ok(project?);
+        return Ok(Some(project?));
     }
 
     Ok(None)

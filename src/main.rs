@@ -16,20 +16,20 @@ fn get_db_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
 }
 
 fn print_usage() {
-    println!("taskline 0.1");
-    println!("taskline is a task management CLI tool to help you organize your projects and tasks efficiently.");
+    println!("nanoshift 0.1");
+    println!("nanoshift is a task management CLI tool to help you organize your projects and tasks efficiently.");
     println!("Author: Nicolas von Garrel <mistervoga@gmail.com>");
     println!();
     println!("Usage:");
-    println!("  tl init [project_name]      Initializes a new project");
-    println!("  tl add <task>               Adds a new task to the current project");
-    println!("  tl list                     Lists all tasks in the current project");
-    println!("  tl complete <task_index>    Marks a task as completed");
-    println!("  tl delete <task_index>      Deletes a task");
-    println!("  tl delete -a                Deletes all tasks in the current project");
-    println!("  tl switch <project_name>    Switches to a different project");
-    println!("  tl export [project_name]    Exports tasks of the current or specified project to a CSV file");
-    println!("  tl projects                 Lists all projects");
+    println!("  ns init [project_name]      Initializes a new project");
+    println!("  ns add <task>               Adds a new task to the current project");
+    println!("  ns list                     Lists all tasks in the current project");
+    println!("  ns complete <task_index>    Marks a task as completed");
+    println!("  ns delete <task_index>      Deletes a task");
+    println!("  ns delete -a                Deletes all tasks in the current project");
+    println!("  ns switch <project_name>    Switches to a different project");
+    println!("  ns export [project_name]    Exports tasks of the current or specified project to a CSV file");
+    println!("  ns projects                 Lists all projects");
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
