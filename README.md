@@ -24,7 +24,7 @@
 1. Clone the repository to your local machine
 
 ```sh
-    git clone https://github.com/mistervoga/taskline.git
+    git clone https://github.com/mistervoga/nanoshift.git
     cd taskline
 ```
 
@@ -37,36 +37,43 @@
 3. Run the executable
 
 ```sh
-    ./target/release/taskline
+    ./target/release/nanoshift
+```
+
+4. Move executable to system-wide location with access to your Path
+
+```sh
+    # Assumes you have a bin folder in the home directory, alternatively you can move it to /usr/bin/nsh
+    mv /target/release/nanoshift ~/bin/nsh
 ```
 
 ## Usage
 
 ```sh
 # Initialize a new project
-ns init [project_name]
+nsh init [project_name]
 
 # Add a new task
-ns add "Task description"
+nsh add "Task description"
 
 # List all tasks
-ns list
+nsh list
 
 # Mark a task as completed
-ns complete <task_index>
+nsh complete <task_index>
 
 # Delete a task
-ns delete <task_index>
+nsh delete <task_index>
 
 # Delete all tasks
-ns delete -a
+nsh delete -a
 
 # Switch to a different project
-ns switch <project_name>
+nsh switch <project_name>
 
 # Export tasks to a CSV file
-ns export [project_name]
+nsh export [project_name]
 
 # List all projects
-ns projects
+nsh projects
 ```

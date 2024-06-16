@@ -21,15 +21,15 @@ fn print_usage() {
     println!("Author: Nicolas von Garrel <mistervoga@gmail.com>");
     println!();
     println!("Usage:");
-    println!("  ns init [project_name]      Initializes a new project");
-    println!("  ns add <task>               Adds a new task to the current project");
-    println!("  ns list                     Lists all tasks in the current project");
-    println!("  ns complete <task_index>    Marks a task as completed");
-    println!("  ns delete <task_index>      Deletes a task");
-    println!("  ns delete -a                Deletes all tasks in the current project");
-    println!("  ns switch <project_name>    Switches to a different project");
-    println!("  ns export [project_name]    Exports tasks of the current or specified project to a CSV file");
-    println!("  ns projects                 Lists all projects");
+    println!("  nsh init [project_name]      Initializes a new project");
+    println!("  nsh add <task>               Adds a new task to the current project");
+    println!("  nsh list                     Lists all tasks in the current project");
+    println!("  nsh complete <task_index>    Marks a task as completed");
+    println!("  nsh delete <task_index>      Deletes a task");
+    println!("  nsh delete -a                Deletes all tasks in the current project");
+    println!("  nsh switch <project_name>    Switches to a different project");
+    println!("  nsh export [project_name]    Exports tasks of the current or specified project to a CSV file");
+    println!("  nsh projects                 Lists all projects");
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
