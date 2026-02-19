@@ -1,108 +1,78 @@
+// src/main.rs
+
 mod db;
 mod tasks;
 
-use rusqlite::Connection;
-use std::env;
-use std::path::PathBuf;
-use std::result::Result;
+use anyhow::Result;
+use clap::{Parser, Subcommand};
+use tasks::{Scope};
 
-use db::{init_db, set_project, list_projects};
-use tasks::{add_task, list_tasks, complete_task, delete_task, delete_all_tasks, export_project};
-
-fn get_db_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let exe_path = env::current_exe()?;
-    let exe_dir = exe_path.parent().ok_or("Failed to get executable directory")?;
-    Ok(exe_dir.join("tasks.db"))
+#[derive(Parser)]
+#[command(name = "nanoshift")]
+#[command(about = "Minimal, focused task management.")]
+struct Cli {
+    #[command(subcommand)]
+    command: Command,
 }
 
-fn print_usage() {
-    println!("nanoshift 0.1");
-    println!("nanoshift is a task management CLI tool to help you organize your projects and tasks efficiently.");
-    println!("Author: Nicolas von Garrel <mistervoga@gmail.com>");
-    println!();
-    println!("Usage:");
-    println!("  nsh init [project_name]      Initializes a new project");
-    println!("  nsh add <task>               Adds a new task to the current project");
-    println!("  nsh list                     Lists all tasks in the current project");
-    println!("  nsh complete <task_index>    Marks a task as completed");
-    println!("  nsh delete <task_index>      Deletes a task");
-    println!("  nsh delete -a                Deletes all tasks in the current project");
-    println!("  nsh switch <project_name>    Switches to a different project");
-    println!("  nsh export [project_name]    Exports tasks of the current or specified project to a CSV file");
-    println!("  nsh projects                 Lists all projects");
+#[derive(Subcommand)]
+enum Command {
+    Init,
+    Add { task: String },
+    List,
+    Complete { id: i64 },
+    Delete { id: i64 },
+    DeleteAll,
+    Projects,
+    Switch { project: String },
+    Export { path: Option<String> },
+    Status,
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args: Vec<String> = env::args().collect();
+fn main() -> Result<()> {
+    let cli = Cli::parse();
+    let conn = db::connect_and_init()?;
 
-    if args.len() < 2 {
-        print_usage();
-        return Ok(());
-    }
-
-    let db_path = get_db_path()?;
-    let conn = Connection::open(db_path)?;
-
-    match args[1].as_str() {
-        "init" => {
-            if args.len() < 3 {
-                init_db(&conn, None)?;
+    match cli.command {
+        Command::Init => println!("nanoshift ready"),
+        Command::Add { task } => tasks::add_task(&conn, &task)?,
+        Command::List => {
+            let items = tasks::list_tasks(&conn)?;
+            if items.is_empty() {
+                println!("no tasks");
             } else {
-                init_db(&conn, Some(&args[2]))?;
+                for t in items {
+                    let mark = if t.completed { "✓" } else { " " };
+                    println!("{:<4} [{}] {}", t.id, mark, t.description);
+                }
             }
         }
-        "add" => {
-            if args.len() < 3 {
-                println!("Error: Specify a task to add.");
-                print_usage();
-            } else {
-                add_task(&conn, &args[2])?;
+        Command::Complete { id } => tasks::complete_task(&conn, id)?,
+        Command::Delete { id } => tasks::delete_task(&conn, id)?,
+        Command::DeleteAll => {
+            let n = tasks::delete_all_in_scope(&conn)?;
+            println!("deleted {}", n);
+        }
+        Command::Projects => {
+            for p in tasks::list_projects(&conn)? {
+                println!("{}", p);
             }
         }
-        "list" => {
-            list_tasks(&conn)?;
+        Command::Switch { project } => {
+            tasks::set_scope(&conn, &project)?;
+            println!("scope: {}", tasks::get_scope(&conn)?.as_str());
         }
-        "complete" => {
-            if args.len() < 3 {
-                println!("Error: Specify the ID of the task to complete.");
-                print_usage();
-            } else {
-                let id = args[2].parse::<i32>().expect("Invalid ID");
-                complete_task(&conn, id)?;
+        Command::Export { path } => {
+            let path = path.unwrap_or_else(|| "nanoshift_export.csv".into());
+            let n = tasks::export_scope_csv(&conn, &path)?;
+            println!("exported {} -> {}", n, path);
+        }
+        Command::Status => {
+            let scope = tasks::get_scope(&conn)?;
+            match scope {
+                Scope::Global => println!("scope: global"),
+                Scope::Project(name) => println!("scope: {}", name),
             }
-        }
-        "delete" => {
-            if args.len() < 3 {
-                println!("Error: Specify the ID of the task to delete.");
-                print_usage();
-            } else if args[2] == "-a" {
-                delete_all_tasks(&conn)?;
-            } else {
-                let id = args[2].parse::<i32>().expect("Invalid ID");
-                delete_task(&conn, id)?;
-            }
-        }
-        "switch" => {
-            if args.len() < 3 {
-                println!("Error: Specify the project name to switch to.");
-                print_usage();
-            } else {
-                set_project(&conn, &args[2])?;
-            }
-        }
-        "export" => {
-            if args.len() < 3 {
-                export_project(&conn, "Global").expect("Failed to export Global project.");
-            } else {
-                export_project(&conn, &args[2]).expect("Failed to export project.");
-            }
-        }
-        "projects" => {
-            list_projects(&conn)?;
-        }
-        _ => {
-            println!("Error: Invalid command.");
-            print_usage();
         }
     }
 

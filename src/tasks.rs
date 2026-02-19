@@ -1,165 +1,211 @@
-use rusqlite::{params, Connection, Result, OptionalExtension};
-use chrono::prelude::*;
-use std::fs::File;
-use std::error::Error;
-use csv::Writer;
+// src/tasks.rs
 
-pub fn add_task(conn: &Connection, task: &str) -> Result<()> {
-    let project_name = crate::db::get_current_project(conn)?.unwrap_or_else(|| "Global".to_string());
+use anyhow::{bail, Result};
+use chrono::Utc;
+use rusqlite::{params, Connection, OptionalExtension};
 
-    let project_id: Option<i32> = if project_name.eq_ignore_ascii_case("global") {
-        None
-    } else {
-        conn.query_row(
-            "SELECT id FROM projects WHERE name = ?1",
-            params![project_name],
-            |row| row.get(0)
-        ).optional()?
-    };
-
-    let now: DateTime<Local> = Local::now();
-    conn.execute(
-        "INSERT INTO tasks (description, completed, date_added, date_completed, project_id) VALUES (?1, 0, ?2, NULL, ?3)",
-        params![task, now.format("%Y-%m-%d %H:%M:%S").to_string(), project_id],
-    )?;
-    println!("Task added: {}", task);
-    Ok(())
+#[derive(Debug)]
+pub struct Task {
+    pub id: i64,
+    pub description: String,
+    pub completed: bool,
 }
 
-pub fn list_tasks(conn: &Connection) -> Result<()> {
-    let current_project = crate::db::get_current_project(conn)?;
-    let query = match &current_project {
-        Some(proj) if !proj.eq_ignore_ascii_case("global") => {
-            "SELECT t.id, t.description, t.completed, t.date_added, t.date_completed, p.name FROM tasks t
-             JOIN projects p ON t.project_id = p.id WHERE p.name = ?1"
-        }
-        _ => {
-            "SELECT t.id, t.description, t.completed, t.date_added, t.date_completed, p.name FROM tasks t
-             LEFT JOIN projects p ON t.project_id = p.id WHERE t.project_id IS NULL"
-        }
-    };
+#[derive(Debug, Clone)]
+pub enum Scope {
+    Global,
+    Project(String),
+}
 
-    let mut stmt = conn.prepare(query)?;
-    let task_iter: Box<dyn Iterator<Item = Result<(_, _, _, _, _, _)>>> = match &current_project {
-        Some(proj) if !proj.eq_ignore_ascii_case("global") => {
-            Box::new(stmt.query_map(params![proj], |row| {
-                Ok((
-                    row.get::<_, i32>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, bool>(2)?,
-                    row.get::<_, String>(3)?,
-                    row.get::<_, Option<String>>(4)?,
-                    row.get::<_, Option<String>>(5)?,
-                ))
-            })?)
+impl Scope {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Scope::Global => "global",
+            Scope::Project(name) => name.as_str(),
         }
-        _ => {
-            Box::new(stmt.query_map([], |row| {
-                Ok((
-                    row.get::<_, i32>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, bool>(2)?,
-                    row.get::<_, String>(3)?,
-                    row.get::<_, Option<String>>(4)?,
-                    row.get::<_, Option<String>>(5)?,
-                ))
-            })?)
-        }
-    };
+    }
 
-    for task in task_iter {
-        let (id, description, completed, date_added, date_completed, project) = task?;
-        let status = if completed {
-            format!("(Completed on {})", date_completed.unwrap_or_default())
+    pub fn parse(input: &str) -> Scope {
+        let s = input.trim();
+        if s.eq_ignore_ascii_case("global") {
+            Scope::Global
         } else {
-            "(Pending)".to_string()
-        };
-        let project_info = match project {
-            Some(proj) => format!(" [Project: {}]", proj),
-            None => String::from(""),
-        };
-        println!("{}: {} {} [Added on {}]{}", id, description, status, date_added, project_info);
+            Scope::Project(s.to_string())
+        }
     }
-    Ok(())
 }
 
-pub fn complete_task(conn: &Connection, id: i32) -> Result<()> {
-    let now: DateTime<Local> = Local::now();
-    let changes = conn.execute(
-        "UPDATE tasks SET completed = 1, date_completed = ?1 WHERE id = ?2",
-        params![now.format("%Y-%m-%d %H:%M:%S").to_string(), id],
+pub fn get_scope(conn: &Connection) -> Result<Scope> {
+    let raw: String = conn.query_row(
+        "SELECT value FROM meta WHERE key='scope'",
+        [],
+        |row| row.get(0),
     )?;
-    if changes == 0 {
-        println!("Error: Invalid task ID");
-    } else {
-        println!("Task {} marked as completed", id);
-    }
-    Ok(())
+    Ok(Scope::parse(&raw))
 }
 
-pub fn delete_task(conn: &Connection, id: i32) -> Result<()> {
-    let changes = conn.execute(
-        "DELETE FROM tasks WHERE id = ?1",
-        params![id],
+pub fn set_scope(conn: &Connection, project: &str) -> Result<()> {
+    let scope = Scope::parse(project);
+
+    if let Scope::Project(ref name) = scope {
+        if name.trim().is_empty() {
+            bail!("project name cannot be empty");
+        }
+        // ensure project exists
+        conn.execute(
+            "INSERT OR IGNORE INTO projects(name) VALUES(?1)",
+            params![name],
+        )?;
+    }
+
+    conn.execute(
+        "UPDATE meta SET value=?1 WHERE key='scope'",
+        params![scope.as_str()],
     )?;
-    if changes == 0 {
-        println!("Error: Invalid task ID");
-    } else {
-        println!("Task {} deleted", id);
-    }
+
     Ok(())
 }
 
-pub fn delete_all_tasks(conn: &Connection) -> Result<()> {
-    let current_project = crate::db::get_current_project(conn)?;
-    let query = match current_project {
-        Some(ref proj) => format!("DELETE FROM tasks WHERE project_id = (SELECT id FROM projects WHERE name = '{}')", proj),
-        None => "DELETE FROM tasks WHERE project_id IS NULL".to_string(),
+pub fn list_projects(conn: &Connection) -> Result<Vec<String>> {
+    let mut out = vec!["global".to_string()];
+
+    let mut stmt = conn.prepare("SELECT name FROM projects ORDER BY name ASC")?;
+    let rows = stmt.query_map([], |r| r.get::<_, String>(0))?;
+
+    for r in rows {
+        out.push(r?);
+    }
+
+    Ok(out)
+}
+
+fn current_project_id(conn: &Connection) -> Result<Option<i64>> {
+    match get_scope(conn)? {
+        Scope::Global => Ok(None),
+        Scope::Project(name) => Ok(conn
+            .query_row(
+                "SELECT id FROM projects WHERE name=?1",
+                params![name],
+                |row| row.get(0),
+            )
+            .optional()?),
+    }
+}
+
+pub fn add_task(conn: &Connection, description: &str) -> Result<()> {
+    let desc = description.trim();
+    if desc.is_empty() {
+        bail!("task cannot be empty");
+    }
+
+    // if scope is project and missing, create it (safety)
+    let scope = get_scope(conn)?;
+    let pid = match scope {
+        Scope::Global => None,
+        Scope::Project(ref name) => {
+            conn.execute(
+                "INSERT OR IGNORE INTO projects(name) VALUES(?1)",
+                params![name],
+            )?;
+            Some(conn.query_row(
+                "SELECT id FROM projects WHERE name=?1",
+                params![name],
+                |row| row.get(0),
+            )?)
+        }
     };
 
-    conn.execute(&query, [])?;
-    println!("All tasks have been deleted.");
+    conn.execute(
+        "INSERT INTO tasks(description, completed, created_at, project_id)
+         VALUES(?1, 0, ?2, ?3)",
+        params![desc, Utc::now().to_rfc3339(), pid],
+    )?;
     Ok(())
 }
 
-pub fn export_project(conn: &Connection, project_name: &str) -> Result<(), Box<dyn Error>> {
-    let query = if project_name.eq_ignore_ascii_case("global") {
-        "SELECT id, description, completed, date_added, date_completed FROM tasks WHERE project_id IS NULL".to_string()
+pub fn list_tasks(conn: &Connection) -> Result<Vec<Task>> {
+    let pid = current_project_id(conn)?;
+    let mut out = vec![];
+
+    if let Some(pid) = pid {
+        let mut stmt = conn.prepare(
+            "SELECT id, description, completed
+             FROM tasks
+             WHERE project_id=?1
+             ORDER BY completed ASC, id ASC",
+        )?;
+
+        let rows = stmt.query_map(params![pid], |row| {
+            Ok(Task {
+                id: row.get(0)?,
+                description: row.get(1)?,
+                completed: row.get::<_, i64>(2)? == 1,
+            })
+        })?;
+
+        for r in rows {
+            out.push(r?);
+        }
     } else {
-        format!(
-            "SELECT id, description, completed, date_added, date_completed FROM tasks WHERE project_id = (SELECT id FROM projects WHERE name = '{}')",
-            project_name
-        )
-    };
+        let mut stmt = conn.prepare(
+            "SELECT id, description, completed
+             FROM tasks
+             WHERE project_id IS NULL
+             ORDER BY completed ASC, id ASC",
+        )?;
 
-    let mut stmt = conn.prepare(&query)?;
-    let task_iter = stmt.query_map([], |row| {
-        Ok((
-            row.get::<_, i32>(0)?,
-            row.get::<_, String>(1)?,
-            row.get::<_, bool>(2)?,
-            row.get::<_, String>(3)?,
-            row.get::<_, Option<String>>(4)?,
-        ))
-    })?;
+        let rows = stmt.query_map([], |row| {
+            Ok(Task {
+                id: row.get(0)?,
+                description: row.get(1)?,
+                completed: row.get::<_, i64>(2)? == 1,
+            })
+        })?;
 
-    let file = File::create(format!("{}.csv", project_name))?;
-    let mut wtr = Writer::from_writer(file);
+        for r in rows {
+            out.push(r?);
+        }
+    }
 
-    wtr.write_record(&["ID", "Description", "Completed", "Date Added", "Date Completed"])?;
+    Ok(out)
+}
 
-    for task in task_iter {
-        let (id, description, completed, date_added, date_completed) = task?;
-        wtr.write_record(&[
-            id.to_string(),
-            description,
-            completed.to_string(),
-            date_added,
-            date_completed.unwrap_or_default(),
+pub fn complete_task(conn: &Connection, id: i64) -> Result<()> {
+    if conn.execute("UPDATE tasks SET completed=1 WHERE id=?1", params![id])? == 0 {
+        bail!("no such task id");
+    }
+    Ok(())
+}
+
+pub fn delete_task(conn: &Connection, id: i64) -> Result<()> {
+    if conn.execute("DELETE FROM tasks WHERE id=?1", params![id])? == 0 {
+        bail!("no such task id");
+    }
+    Ok(())
+}
+
+pub fn delete_all_in_scope(conn: &Connection) -> Result<usize> {
+    let pid = current_project_id(conn)?;
+    Ok(if let Some(pid) = pid {
+        conn.execute("DELETE FROM tasks WHERE project_id=?1", params![pid])?
+    } else {
+        conn.execute("DELETE FROM tasks WHERE project_id IS NULL", [])?
+    })
+}
+
+pub fn export_scope_csv(conn: &Connection, path: &str) -> Result<usize> {
+    let tasks = list_tasks(conn)?;
+    let mut wtr = csv::Writer::from_path(path)?;
+    wtr.write_record(["id", "completed", "description"])?;
+
+    for t in &tasks {
+        wtr.write_record([
+            t.id.to_string(),
+            (if t.completed { "1" } else { "0" }).to_string(),
+            t.description.clone(),
         ])?;
     }
 
     wtr.flush()?;
-    println!("Project '{}' exported to '{}.csv'.", project_name, project_name);
-    Ok(())
+    Ok(tasks.len())
 }

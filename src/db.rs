@@ -1,111 +1,48 @@
-use rusqlite::{params, Connection, Result};
+use anyhow::{Context, Result};
+use rusqlite::Connection;
+use std::path::PathBuf;
 
-pub fn list_projects(conn: &Connection) -> Result<()> {
-    let mut stmt = conn.prepare("SELECT name FROM projects")?;
-    let project_iter = stmt.query_map([], |row| {
-        row.get::<_, String>(0)
-    })?;
-
-    println!("Projects:");
-    for project in project_iter {
-        println!(" - {}", project?);
-    }
-    Ok(())
+fn db_path() -> Result<PathBuf> {
+    let base = dirs::data_dir().context("cannot resolve user data dir")?;
+    Ok(base.join("nanoshift").join("tasks.db"))
 }
 
-
-pub fn init_db(conn: &Connection, project: Option<&str>) -> Result<()> {
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS projects (
-                  id INTEGER PRIMARY KEY,
-                  name TEXT NOT NULL UNIQUE
-                  )",
-        [],
-    )?;
-    
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS tasks (
-                  id INTEGER PRIMARY KEY,
-                  description TEXT NOT NULL,
-                  completed INTEGER NOT NULL,
-                  date_added TEXT NOT NULL,
-                  date_completed TEXT,
-                  project_id INTEGER,
-                  FOREIGN KEY(project_id) REFERENCES projects(id)
-                  )",
-        [],
-    )?;
-    
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS current_project (
-                  id INTEGER PRIMARY KEY,
-                  project_id INTEGER,
-                  FOREIGN KEY(project_id) REFERENCES projects(id)
-                  )",
-        [],
-    )?;
-
-    if let Some(proj) = project {
-        conn.execute(
-            "INSERT INTO projects (name) VALUES (?1)
-             ON CONFLICT(name) DO NOTHING",
-            params![proj],
-        )?;
-
-        let project_id: i32 = conn.query_row(
-            "SELECT id FROM projects WHERE name = ?1",
-            params![proj],
-            |row| row.get(0),
-        )?;
-
-        conn.execute(
-            "INSERT INTO current_project (id, project_id) VALUES (1, ?1)
-             ON CONFLICT(id) DO UPDATE SET project_id=excluded.project_id",
-            params![project_id],
-        )?;
-        println!("Project '{}' initialized and set as current project.", proj);
-    } else {
-        println!("Global To-Do file initialized.");
+pub fn connect_and_init() -> Result<Connection> {
+    let path = db_path()?;
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
     }
-
-    Ok(())
+    let conn = Connection::open(path)?;
+    ensure_schema(&conn)?;
+    Ok(conn)
 }
 
-pub fn set_project(conn: &Connection, project: &str) -> Result<()> {
-    conn.execute(
-        "INSERT INTO projects (name) VALUES (?1)
-         ON CONFLICT(name) DO NOTHING",
-        params![project],
-    )?;
+fn ensure_schema(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        r#"
+        PRAGMA foreign_keys = ON;
 
-    let project_id: i32 = conn.query_row(
-        "SELECT id FROM projects WHERE name = ?1",
-        params![project],
-        |row| row.get(0),
-    )?;
+        CREATE TABLE IF NOT EXISTS meta (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
 
-    conn.execute(
-        "INSERT INTO current_project (id, project_id) VALUES (1, ?1)
-         ON CONFLICT(id) DO UPDATE SET project_id=excluded.project_id",
-        params![project_id],
+        CREATE TABLE IF NOT EXISTS projects (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE
+        );
+
+        CREATE TABLE IF NOT EXISTS tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            description TEXT NOT NULL,
+            completed INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            project_id INTEGER NULL,
+            FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE SET NULL
+        );
+
+        INSERT OR IGNORE INTO meta(key, value) VALUES ('scope', 'global');
+        "#,
     )?;
-    println!("Switched to project '{}'.", project);
     Ok(())
-}
-
-pub fn get_current_project(conn: &Connection) -> Result<Option<String>> {
-    let mut stmt = conn.prepare(
-        "SELECT p.name FROM current_project cp
-         JOIN projects p ON cp.project_id = p.id
-         WHERE cp.id = 1"
-    )?;
-    let project_iter = stmt.query_map([], |row| {
-        row.get::<_, String>(0)
-    })?;
-
-    for project in project_iter {
-        return Ok(Some(project?));
-    }
-
-    Ok(None)
 }
