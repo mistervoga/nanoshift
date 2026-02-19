@@ -51,7 +51,6 @@ pub fn set_scope(conn: &Connection, project: &str) -> Result<()> {
         if name.trim().is_empty() {
             bail!("project name cannot be empty");
         }
-        // ensure project exists
         conn.execute(
             "INSERT OR IGNORE INTO projects(name) VALUES(?1)",
             params![name],
@@ -98,11 +97,9 @@ pub fn add_task(conn: &Connection, description: &str) -> Result<()> {
         bail!("task cannot be empty");
     }
 
-    // if scope is project and missing, create it (safety)
-    let scope = get_scope(conn)?;
-    let pid = match scope {
+    let pid: Option<i64> = match get_scope(conn)? {
         Scope::Global => None,
-        Scope::Project(ref name) => {
+        Scope::Project(name) => {
             conn.execute(
                 "INSERT OR IGNORE INTO projects(name) VALUES(?1)",
                 params![name],
@@ -110,7 +107,7 @@ pub fn add_task(conn: &Connection, description: &str) -> Result<()> {
             Some(conn.query_row(
                 "SELECT id FROM projects WHERE name=?1",
                 params![name],
-                |row| row.get(0),
+                |row| row.get::<_, i64>(0),
             )?)
         }
     };
@@ -120,6 +117,7 @@ pub fn add_task(conn: &Connection, description: &str) -> Result<()> {
          VALUES(?1, 0, ?2, ?3)",
         params![desc, Utc::now().to_rfc3339(), pid],
     )?;
+
     Ok(())
 }
 
@@ -137,8 +135,8 @@ pub fn list_tasks(conn: &Connection) -> Result<Vec<Task>> {
 
         let rows = stmt.query_map(params![pid], |row| {
             Ok(Task {
-                id: row.get(0)?,
-                description: row.get(1)?,
+                id: row.get::<_, i64>(0)?,
+                description: row.get::<_, String>(1)?,
                 completed: row.get::<_, i64>(2)? == 1,
             })
         })?;
@@ -156,8 +154,8 @@ pub fn list_tasks(conn: &Connection) -> Result<Vec<Task>> {
 
         let rows = stmt.query_map([], |row| {
             Ok(Task {
-                id: row.get(0)?,
-                description: row.get(1)?,
+                id: row.get::<_, i64>(0)?,
+                description: row.get::<_, String>(1)?,
                 completed: row.get::<_, i64>(2)? == 1,
             })
         })?;

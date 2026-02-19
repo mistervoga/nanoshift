@@ -1,79 +1,208 @@
 # nanoshift
 
-**nanoshift** is a simple, command-line based to-do list application to help you manage your tasks efficiently. Keep track of what needs to be done, organize your day, and boost your productivity with ease.
+**nanoshift** is a minimal, offline-first CLI task manager built for clarity and speed.  
+No accounts. No sync. No noise. Just tasks and focus.
 
-## Key Features
+Nanoshift is designed for people who want a fast, temporary, resettable system that stays out of the way.
 
-- Lightweight and Efficient: As the name suggests, nanoshift is designed to be a small, powerful tool that doesn't overwhelm you with unnecessary features. It's all about getting things done quickly and efficiently.
-- Temporary Task Management: nanoshift embraces the idea of temporary and regularly resettable task lists. This encourages you to focus on immediate tasks and clear your list frequently, promoting a dynamic and adaptable workflow.
-- CSV Export: Easily export your tasks to a CSV file, allowing you to keep a record of completed tasks, share your to-do list with others, or perform additional data analysis.
-- Project Switching: Seamlessly switch between different projects, each with its own set of tasks, without losing focus on what's important.
-- Reminders and Due Dates: Set due dates and reminders for your tasks to stay on track and ensure that nothing falls through the cracks.
+---
+
+## Philosophy
+
+Nanoshift is built around a few simple ideas:
+
+- Minimal surface area → fewer decisions, more action  
+- Temporary lists → tasks are meant to be cleared regularly  
+- Offline-first → your data is yours  
+- Project scopes → focus without complexity  
+
+It’s not a productivity suite.  
+It’s a sharp tool.
+
+---
 
 ## Features
 
-- Add new tasks with a simple command.
-- List all your pending and completed tasks.
-- Mark tasks as completed.
-- Delete individual tasks or clear all tasks at once.
-- Switch between different projects.
-- Export tasks to a CSV file for backup or sharing.
+- Ultra-lightweight CLI
+- Global scope + project scopes
+- Fast context switching
+- Bulk deletion for clean resets
+- CSV export
+- Local SQLite storage (no cloud)
+
+---
+
+## Concepts
+
+### Scope
+Nanoshift always operates in a **scope**:
+
+- `global` (default)
+- any named project
+
+Switching scope changes what tasks you see.
+
+---
 
 ## Installation
 
-1. Clone the repository to your local machine
-
-```sh
-    git clone https://github.com/mistervoga/nanoshift.git
-    cd taskline
+### 1. Clone the repo
+```bash
+git clone https://github.com/mistervoga/nanoshift.git
+cd nanoshift
 ```
 
-2. Compile the code
-
-```sh
-    cargo build --release
+### 2. Build
+```bash
+cargo build --release
 ```
 
-3. Run the executable
-
-```sh
-    ./target/release/nanoshift
+Binary will be here:
+```
+target/release/nanoshift
 ```
 
-4. Move executable to system-wide location with access to your Path
+---
 
-```sh
-    # Assumes you have a bin folder in the home directory, alternatively you can move it to /usr/bin/nsh
-    mv /target/release/nanoshift ~/bin/nsh
+### 3. Optional: install globally
+
+#### Linux / macOS
+```bash
+cargo install --path .
 ```
+
+Or manual:
+```bash
+mv target/release/nanoshift ~/bin/nanoshift
+```
+
+---
 
 ## Usage
 
-```sh
-# Initialize a new project
-nsh init [project_name]
-
-# Add a new task
-nsh add "Task description"
-
-# List all tasks
-nsh list
-
-# Mark a task as completed
-nsh complete <task_index>
-
-# Delete a task
-nsh delete <task_index>
-
-# Delete all tasks
-nsh delete -a
-
-# Switch to a different project
-nsh switch <project_name>
-
-# Export tasks to a CSV file
-nsh export [project_name]
-
-# List all projects
-nsh projects
+### Initialize database
+```bash
+nanoshift init
 ```
+
+---
+
+### Add task
+```bash
+nanoshift add "Buy milk"
+```
+
+---
+
+### List tasks
+```bash
+nanoshift list
+```
+
+Example output:
+```
+1    [ ] Buy milk
+2    [✓] Send email
+```
+
+---
+
+### Complete task
+```bash
+nanoshift complete 1
+```
+
+---
+
+### Delete task
+```bash
+nanoshift delete 1
+```
+
+---
+
+### Delete all tasks (current scope)
+```bash
+nanoshift delete-all
+```
+
+---
+
+### Switch scope
+
+Create or switch project:
+```bash
+nanoshift switch work
+```
+
+Back to global:
+```bash
+nanoshift switch global
+```
+
+---
+
+### Show projects
+```bash
+nanoshift projects
+```
+
+Always includes:
+```
+global
+```
+
+---
+
+### Show current scope
+```bash
+nanoshift status
+```
+
+---
+
+### Export to CSV
+```bash
+nanoshift export
+```
+
+Custom filename:
+```bash
+nanoshift export tasks.csv
+```
+
+---
+
+## Data Storage
+
+Nanoshift stores everything locally using SQLite.
+
+### Linux
+```
+~/.local/share/nanoshift/tasks.db
+```
+
+### macOS
+```
+~/Library/Application Support/nanoshift/tasks.db
+```
+
+### Windows
+```
+%APPDATA%\nanoshift\tasks.db
+```
+
+---
+
+## Updating
+
+After pulling changes:
+
+```bash
+cargo install --path . --force
+```
+
+---
+
+## License
+MIT License
