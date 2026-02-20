@@ -1,5 +1,3 @@
-// src/tasks.rs
-
 use anyhow::{bail, Result};
 use chrono::Utc;
 use rusqlite::{params, Connection, OptionalExtension};
@@ -168,6 +166,20 @@ pub fn list_tasks(conn: &Connection) -> Result<Vec<Task>> {
     Ok(out)
 }
 
+pub fn list_open_tasks(conn: &Connection) -> Result<Vec<Task>> {
+    Ok(list_tasks(conn)?
+        .into_iter()
+        .filter(|t| !t.completed)
+        .collect())
+}
+
+pub fn counts_in_scope(conn: &Connection) -> Result<(usize, usize)> {
+    let items = list_tasks(conn)?;
+    let open = items.iter().filter(|t| !t.completed).count();
+    let done = items.len() - open;
+    Ok((open, done))
+}
+
 pub fn complete_task(conn: &Connection, id: i64) -> Result<()> {
     if conn.execute("UPDATE tasks SET completed=1 WHERE id=?1", params![id])? == 0 {
         bail!("no such task id");
@@ -205,5 +217,21 @@ pub fn export_scope_csv(conn: &Connection, path: &str) -> Result<usize> {
     }
 
     wtr.flush()?;
+    Ok(tasks.len())
+}
+
+pub fn export_scope_md(conn: &Connection, path: &str) -> Result<usize> {
+    let scope = get_scope(conn)?;
+    let tasks = list_tasks(conn)?;
+
+    let mut out = String::new();
+    out.push_str(&format!("# Nanoshift — {}\n\n", scope.as_str()));
+
+    for t in &tasks {
+        let mark = if t.completed { "x" } else { " " };
+        out.push_str(&format!("- [{}] {}\n", mark, t.description));
+    }
+
+    std::fs::write(path, out)?;
     Ok(tasks.len())
 }

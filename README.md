@@ -3,21 +3,7 @@
 **nanoshift** is a minimal, offline-first CLI task manager built for clarity and speed.  
 No accounts. No sync. No noise. Just tasks and focus.
 
-Nanoshift is designed for people who want a fast, temporary, resettable system that stays out of the way.
-
----
-
-## Philosophy
-
-Nanoshift is built around a few simple ideas:
-
-- Minimal surface area → fewer decisions, more action  
-- Temporary lists → tasks are meant to be cleared regularly  
-- Offline-first → your data is yours  
-- Project scopes → focus without complexity  
-
-It’s not a productivity suite.  
-It’s a sharp tool.
+This repo is called **nanoshift** — the installed binary is **`shift`** (to avoid collisions with `ns` on Linux).
 
 ---
 
@@ -28,147 +14,96 @@ It’s a sharp tool.
 - Fast context switching
 - Bulk deletion for clean resets
 - CSV export
+- Markdown export
+- “Today” + “Focus” views
 - Local SQLite storage (no cloud)
-
----
-
-## Concepts
-
-### Scope
-Nanoshift always operates in a **scope**:
-
-- `global` (default)
-- any named project
-
-Switching scope changes what tasks you see.
 
 ---
 
 ## Installation
 
-### 1. Clone the repo
 ```bash
 git clone https://github.com/mistervoga/nanoshift.git
 cd nanoshift
-```
-
-### 2. Build
-```bash
 cargo build --release
 ```
 
-Binary will be here:
+Binary:
 ```
-target/release/nanoshift
+target/release/shift
 ```
 
----
-
-### 3. Optional: install globally
-
-#### Linux / macOS
+Optional global install:
 ```bash
-cargo install --path .
-```
-
-Or manual:
-```bash
-mv target/release/nanoshift ~/bin/nanoshift
+cargo install --path . --force
 ```
 
 ---
 
 ## Usage
 
-### Initialize database
+Initialize DB:
 ```bash
-nanoshift init
+shift init
 ```
 
----
-
-### Add task
+Add a task:
 ```bash
-nanoshift add "Buy milk"
+shift add "Buy milk"
 ```
 
----
-
-### List tasks
+List tasks:
 ```bash
-nanoshift list
+shift list
 ```
 
-Example output:
-```
-1    [ ] Buy milk
-2    [✓] Send email
-```
-
----
-
-### Complete task
+Complete / delete:
 ```bash
-nanoshift complete 1
+shift complete 1
+shift delete 1
 ```
 
----
-
-### Delete task
+Delete all tasks in current scope:
 ```bash
-nanoshift delete 1
+shift delete-all
 ```
 
----
-
-### Delete all tasks (current scope)
+Switch scope:
 ```bash
-nanoshift delete-all
+shift switch work
+shift switch global
 ```
 
----
-
-### Switch scope
-
-Create or switch project:
+Show projects:
 ```bash
-nanoshift switch work
+shift projects
 ```
 
-Back to global:
+Status (scope + counts):
 ```bash
-nanoshift switch global
+shift status
 ```
 
----
-
-### Show projects
+Today (open tasks only):
 ```bash
-nanoshift projects
+shift today
 ```
 
-Always includes:
-```
-global
-```
-
----
-
-### Show current scope
+Focus (minimal view):
 ```bash
-nanoshift status
+shift focus
 ```
 
----
-
-### Export to CSV
+Export CSV:
 ```bash
-nanoshift export
+shift export
+shift export tasks.csv
 ```
 
-Custom filename:
+Export Markdown:
 ```bash
-nanoshift export tasks.csv
+shift export-md
+shift export-md notes.md
 ```
 
 ---
@@ -194,15 +129,6 @@ Nanoshift stores everything locally using SQLite.
 
 ---
 
-## Updating
-
-After pulling changes:
-
-```bash
-cargo install --path . --force
-```
-
----
-
 ## License
-MIT License
+
+MIT (see `LICENSE` file).
