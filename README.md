@@ -3,7 +3,7 @@
 **nanoshift** is a minimal, offline-first CLI task manager built for clarity and speed.  
 No accounts. No sync. No noise. Just tasks and focus.
 
-This repo is called **nanoshift** — the installed binary is **`shift`** (to avoid collisions with `ns` on Linux).
+This repo is called **nanoshift** — the installed binary is **`nsh`** (to avoid collisions with `ns` on Linux).
 
 ---
 
@@ -44,66 +44,66 @@ cargo install --path . --force
 
 Initialize DB:
 ```bash
-shift init
+nsh init
 ```
 
 Add a task:
 ```bash
-shift add "Buy milk"
+nsh add "Buy milk"
 ```
 
 List tasks:
 ```bash
-shift list
+nsh list
 ```
 
 Complete / delete:
 ```bash
-shift complete 1
-shift delete 1
+nsh complete 1
+nsh delete 1
 ```
 
 Delete all tasks in current scope:
 ```bash
-shift delete-all
+nsh delete-all
 ```
 
 Switch scope:
 ```bash
-shift switch work
-shift switch global
+nsh switch work
+nsh switch global
 ```
 
 Show projects:
 ```bash
-shift projects
+nsh projects
 ```
 
 Status (scope + counts):
 ```bash
-shift status
+nsh status
 ```
 
 Today (open tasks only):
 ```bash
-shift today
+nsh today
 ```
 
 Focus (minimal view):
 ```bash
-shift focus
+nsh focus
 ```
 
 Export CSV:
 ```bash
-shift export
-shift export tasks.csv
+nsh export
+nsh export tasks.csv
 ```
 
 Export Markdown:
 ```bash
-shift export-md
-shift export-md notes.md
+nsh export-md
+nsh export-md notes.md
 ```
 
 ---
