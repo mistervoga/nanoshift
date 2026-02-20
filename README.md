@@ -30,7 +30,7 @@ cargo build --release
 
 Binary:
 ```
-target/release/shift
+target/release/nsh
 ```
 
 Optional global install:
